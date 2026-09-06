@@ -1,3 +1,4 @@
 pyTelegramBotAPI
 feedparser
 yandexfreetranslate
+PySocks
