@@ -39,6 +39,26 @@ def is_mostly_russian(text: str) -> bool:
     return rus > 0 and rus >= lat
 
 
+def is_bad_translation(text: str) -> bool:
+    """Отсекает ответы-ошибки переводчиков."""
+    if not text:
+        return True
+    t = text.lower()
+    bad_markers = [
+        "error 500",
+        "server error",
+        "that's an error",
+        "that’s an error",
+        "unexpected error",
+        "try again",
+        "access denied",
+        "captcha",
+        "<html",
+        "!!1500",
+    ]
+    return any(m in t for m in bad_markers)
+
+
 def translate_text(text: str) -> str:
     text = (text or "").strip()
     if not text:
@@ -52,19 +72,31 @@ def translate_text(text: str) -> str:
     # 1) Google
     try:
         result = GoogleTranslator(source="auto", target="ru").translate(src)
-        if result and result.strip() and result.strip() != src:
-            print(f"OK Google: {result[:50]}")
+        if (
+            result
+            and result.strip()
+            and result.strip() != src
+            and not is_bad_translation(result)
+        ):
+            print(f"OK Google: {result[:60]}")
             return result.strip()
+        else:
+            print("Google: плохой ответ, пробуем MyMemory")
     except Exception as e:
         print(f"Google fail: {e}")
 
-    time.sleep(0.5)
+    time.sleep(0.6)
 
-    # 2) MyMemory (запасной)
+    # 2) MyMemory
     try:
         result = MyMemoryTranslator(source="en-GB", target="ru-RU").translate(src)
-        if result and result.strip() and result.strip() != src:
-            print(f"OK MyMemory: {result[:50]}")
+        if (
+            result
+            and result.strip()
+            and result.strip() != src
+            and not is_bad_translation(result)
+        ):
+            print(f"OK MyMemory: {result[:60]}")
             return result.strip()
     except Exception as e:
         print(f"MyMemory fail: {e}")
