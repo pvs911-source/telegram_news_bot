@@ -4,7 +4,45 @@ import hashlib
 import os
 import socket
 from datetime import datetime
-from deep_translator import GoogleTranslator
+import re
+import time
+from yandexfreetranslate import YandexFreeTranslate
+
+# Сначала web, если не сработает — ios
+yt = YandexFreeTranslate(api="web")
+
+def is_mostly_russian(text: str) -> bool:
+    if not text:
+        return False
+    rus = len(re.findall(r"[А-Яа-яЁё]", text))
+    lat = len(re.findall(r"[A-Za-z]", text))
+    return rus > 0 and rus >= lat
+
+def translate_text(text: str) -> str:
+    text = (text or "").strip()
+    if not text:
+        return text
+
+    # Уже по-русски
+    if is_mostly_russian(text):
+        return text
+
+    # Обрезаем длинные заголовки
+    src = text[:500]
+
+    # 2 попытки через web, потом ios
+    for api_name in ("web", "ios"):
+        try:
+            translator = YandexFreeTranslate(api=api_name)
+            result = translator.translate("en", "ru", src)
+            if result and result.strip() and result.strip() != src:
+                return result.strip()
+        except Exception as e:
+            print(f"Yandex ({api_name}) ошибка: {e}")
+            time.sleep(0.5)
+
+    # Если не перевёл — оригинал
+    return text
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
