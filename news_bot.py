@@ -5,6 +5,7 @@ import os
 import re
 import socket
 from datetime import datetime
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -39,7 +40,6 @@ def is_mostly_russian(text: str) -> bool:
 
 
 def translate_text(text: str) -> str:
-    """Пробует несколько переводчиков, пока не получится."""
     text = (text or "").strip()
     if not text:
         return text
@@ -49,53 +49,25 @@ def translate_text(text: str) -> str:
 
     src = text[:450]
 
-    # --- 1) deep-translator (Google) ---
+    # 1) Google
     try:
-        from deep_translator import GoogleTranslator
         result = GoogleTranslator(source="auto", target="ru").translate(src)
-        if result and result.strip() and not is_mostly_russian(src) and is_mostly_russian(result):
-            print(f"OK Google: {src[:40]} -> {result[:40]}")
-            return result.strip()
         if result and result.strip() and result.strip() != src:
-            print(f"OK Google (soft): {result[:40]}")
+            print(f"OK Google: {result[:50]}")
             return result.strip()
     except Exception as e:
         print(f"Google fail: {e}")
 
-    # --- 2) translators: Bing ---
+    time.sleep(0.5)
+
+    # 2) MyMemory (запасной)
     try:
-        import translators as ts
-        result = ts.translate_text(src, translator="bing", from_language="en", to_language="ru")
+        result = MyMemoryTranslator(source="en-GB", target="ru-RU").translate(src)
         if result and result.strip() and result.strip() != src:
-            print(f"OK Bing: {result[:40]}")
+            print(f"OK MyMemory: {result[:50]}")
             return result.strip()
     except Exception as e:
-        print(f"Bing fail: {e}")
-
-    # --- 3) translators: Yandex ---
-    try:
-        import translators as ts
-        result = ts.translate_text(src, translator="yandex", from_language="en", to_language="ru")
-        if result and result.strip() and result.strip() != src:
-            print(f"OK Yandex-ts: {result[:40]}")
-            return result.strip()
-    except Exception as e:
-        print(f"Yandex-ts fail: {e}")
-
-    # --- 4) yandexfreetranslate ---
-    try:
-        from yandexfreetranslate import YandexFreeTranslate
-        for api_name in ("web", "ios"):
-            try:
-                result = YandexFreeTranslate(api=api_name).translate("en", "ru", src)
-                if result and result.strip() and result.strip() != src:
-                    print(f"OK YandexFree({api_name}): {result[:40]}")
-                    return result.strip()
-            except Exception as e:
-                print(f"YandexFree({api_name}) fail: {e}")
-                time.sleep(0.3)
-    except Exception as e:
-        print(f"YandexFree import fail: {e}")
+        print(f"MyMemory fail: {e}")
 
     print(f"NO TRANSLATE: {src[:60]}")
     return text
@@ -150,7 +122,7 @@ def fetch_headlines():
                     continue
 
                 title_ru = translate_text(title)
-                time.sleep(0.6)  # пауза, чтобы переводчики не резали
+                time.sleep(0.7)
 
                 new_items.append({
                     "source": source,
