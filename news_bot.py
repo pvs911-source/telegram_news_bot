@@ -5,12 +5,10 @@ import os
 import re
 import socket
 from datetime import datetime
-from yandexfreetranslate import YandexFreeTranslate
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Таймаут сетевых запросов
-socket.setdefaulttimeout(15)
+socket.setdefaulttimeout(20)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -41,28 +39,65 @@ def is_mostly_russian(text: str) -> bool:
 
 
 def translate_text(text: str) -> str:
+    """Пробует несколько переводчиков, пока не получится."""
     text = (text or "").strip()
     if not text:
         return text
 
-    # Уже по-русски — не переводим
     if is_mostly_russian(text):
         return text
 
-    src = text[:500]
+    src = text[:450]
 
-    # Пробуем web, затем ios
-    for api_name in ("web", "ios"):
-        try:
-            translator = YandexFreeTranslate(api=api_name)
-            result = translator.translate("en", "ru", src)
-            if result and result.strip() and result.strip() != src:
-                return result.strip()
-        except Exception as e:
-            print(f"Yandex ({api_name}) ошибка: {e}")
-            time.sleep(0.5)
+    # --- 1) deep-translator (Google) ---
+    try:
+        from deep_translator import GoogleTranslator
+        result = GoogleTranslator(source="auto", target="ru").translate(src)
+        if result and result.strip() and not is_mostly_russian(src) and is_mostly_russian(result):
+            print(f"OK Google: {src[:40]} -> {result[:40]}")
+            return result.strip()
+        if result and result.strip() and result.strip() != src:
+            print(f"OK Google (soft): {result[:40]}")
+            return result.strip()
+    except Exception as e:
+        print(f"Google fail: {e}")
 
-    # Если перевод не удался — оригинал
+    # --- 2) translators: Bing ---
+    try:
+        import translators as ts
+        result = ts.translate_text(src, translator="bing", from_language="en", to_language="ru")
+        if result and result.strip() and result.strip() != src:
+            print(f"OK Bing: {result[:40]}")
+            return result.strip()
+    except Exception as e:
+        print(f"Bing fail: {e}")
+
+    # --- 3) translators: Yandex ---
+    try:
+        import translators as ts
+        result = ts.translate_text(src, translator="yandex", from_language="en", to_language="ru")
+        if result and result.strip() and result.strip() != src:
+            print(f"OK Yandex-ts: {result[:40]}")
+            return result.strip()
+    except Exception as e:
+        print(f"Yandex-ts fail: {e}")
+
+    # --- 4) yandexfreetranslate ---
+    try:
+        from yandexfreetranslate import YandexFreeTranslate
+        for api_name in ("web", "ios"):
+            try:
+                result = YandexFreeTranslate(api=api_name).translate("en", "ru", src)
+                if result and result.strip() and result.strip() != src:
+                    print(f"OK YandexFree({api_name}): {result[:40]}")
+                    return result.strip()
+            except Exception as e:
+                print(f"YandexFree({api_name}) fail: {e}")
+                time.sleep(0.3)
+    except Exception as e:
+        print(f"YandexFree import fail: {e}")
+
+    print(f"NO TRANSLATE: {src[:60]}")
     return text
 
 
@@ -115,6 +150,7 @@ def fetch_headlines():
                     continue
 
                 title_ru = translate_text(title)
+                time.sleep(0.6)  # пауза, чтобы переводчики не резали
 
                 new_items.append({
                     "source": source,
@@ -124,7 +160,6 @@ def fetch_headlines():
                 })
                 seen.add(news_id)
                 count += 1
-                time.sleep(0.3)
 
         except Exception as e:
             print(f"Ошибка {source}: {e}")
